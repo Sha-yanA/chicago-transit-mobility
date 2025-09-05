@@ -21,8 +21,9 @@ def load_data():
     """
     try:
         gdf = gpd.read_file("chicago_accessibility_predictions.geojson")
-        if gdf.crs != "EPSG:4326":
-            gdf = gdf.to_crs(epsg=4326)
+        # Ensure CRS is correct for web mapping right away
+        if gdf.crs != "EPSG:3857":
+            gdf = gdf.to_crs(epsg=3857)
 
         model = joblib.load("transit_accessibility_model.joblib")
         optimal_features = joblib.load("optimal_features.joblib")
@@ -41,111 +42,122 @@ def load_data():
 # --- Load Data ---
 gdf, model, scaler, optimal_features = load_data()
 
-# --- Main App Logic (runs only if data is loaded) ---
-if gdf is not None and model is not None and optimal_features is not None:
-    
-    # --- Sidebar ---
-    st.sidebar.title("Urban Mobility Explorer")
-    st.sidebar.markdown("Analyze transit accessibility and equity across Chicago's neighborhoods.")
 
-    # --- Real-Time Prediction Section (Now Dynamic) ---
-    st.sidebar.header("Real-Time Accessibility Prediction")
-    st.sidebar.markdown("Adjust the sliders below for the features your model selected as most predictive.")
+# --- Main Application Logic ---
+def main():
+    """Defines the Streamlit app structure and logic."""
 
-    # A dictionary to hold the configuration for each possible slider
-    slider_configs = {
-        'median_income': {"label": "Median Household Income ($)", "min": 10000, "max": 250000, "default": 60000, "step": 1000},
-        'pct_minority': {"label": "Percent Minority Population", "min": 0.0, "max": 100.0, "default": 25.0, "step": 0.5},
-        'pct_commute_public_transit': {"label": "Percent Commuting via Public Transit", "min": 0.0, "max": 100.0, "default": 15.0, "step": 0.5},
-        'population_density': {"label": "Population Density (per sq/km)", "min": 500, "max": 30000, "default": 5000, "step": 100},
-        'avg_daily_pickups': {"label": "Avg. Daily Rideshare Pickups", "min": 0, "max": 500, "default": 50, "step": 5}
-    }
-    
-    # A dictionary to store the user's input values
-    user_inputs = {}
+    # --- Sidebar for User Inputs ---
+    st.sidebar.header("Simulate a New Scenario")
+    st.sidebar.markdown("""
+    Adjust the sliders to represent a hypothetical census tract and predict its transit accessibility score.
+    """)
 
-    # Dynamically create sliders based on the loaded optimal_features
-    for feature in optimal_features:
-        if feature in slider_configs:
-            config = slider_configs[feature]
-            user_inputs[feature] = st.sidebar.slider(
-                config["label"], 
-                min_value=config["min"], 
-                max_value=config["max"], 
-                value=config["default"], 
-                step=config["step"]
-            )
+    # Create sliders for each feature the model expects
+    if optimal_features and gdf is not None:
+        # Use min/max from the actual data for realistic slider ranges
+        stop_count = st.sidebar.slider("Number of CTA Stops", int(gdf['stop_count'].min()), int(gdf['stop_count'].max()), int(gdf['stop_count'].mean()))
+        service_frequency = st.sidebar.slider("Service Frequency (Avg Daily Trips)", int(gdf['service_frequency'].min()), int(gdf['service_frequency'].max()), int(gdf['service_frequency'].mean()))
+        population_density = st.sidebar.slider("Population Density (per sq km)", float(gdf['population_density'].min()), float(gdf['population_density'].max()), float(gdf['population_density'].mean()))
+        stop_density = st.sidebar.slider("Stop Density (stops per sq km)", float(gdf['stop_density'].min()), float(gdf['stop_density'].max()), float(gdf['stop_density'].mean()))
+        pct_minority = st.sidebar.slider("Percent Minority Population", 0.0, 100.0, float(gdf['pct_minority'].mean()))
+        pct_commute_public_transit = st.sidebar.slider("Percent Commuting via Public Transit", 0.0, 100.0, float(gdf['pct_commute_public_transit'].mean()))
+        median_income = st.sidebar.slider("Median Household Income ($)", int(gdf['median_income'].min()), int(gdf['median_income'].max()), int(gdf['median_income'].mean()))
+        avg_daily_pickups = st.sidebar.slider("Average Daily Rideshare Pickups", int(gdf['avg_daily_pickups'].min()), int(gdf['avg_daily_pickups'].max()), int(gdf['avg_daily_pickups'].mean()))
 
-    # --- Prediction Logic ---
-    if st.sidebar.button("Predict Score", use_container_width=True):
-        # Create a dataframe from the dynamic inputs
-        input_data = pd.DataFrame([user_inputs])
-        
-        # Ensure the column order matches the model's training order
-        input_data = input_data[optimal_features]
-        
-        # Scale the input data ONLY if the scaler was loaded (i.e., SVR was the best model)
-        if scaler:
-            input_data_scaled = scaler.transform(input_data)
-        else:
-            input_data_scaled = input_data
-        
-        # Make the prediction
-        predicted_score = model.predict(input_data_scaled)[0]
-        
-        # Display the result
-        st.sidebar.metric("Predicted Accessibility Score", f"{predicted_score:.3f}")
-        
-        # Interpret the score based on our cluster analysis
-        if predicted_score >= 0.7:
-            st.sidebar.success("This score corresponds to an **'A: High-Access Corridor'** area.")
-        elif predicted_score >= 0.4:
-            st.sidebar.info("This score corresponds to a **'B: Moderate-Access Neighborhood'**.")
-        elif predicted_score >= 0.2:
-            st.sidebar.warning("This score corresponds to a **'C: Low-Access Area'**.")
-        else:
-            st.sidebar.error("This score corresponds to a **'D: Transit Desert'**.")
+    # --- Prediction Block ---
+    if st.sidebar.button("Predict Accessibility Score"):
+        if model and optimal_features and gdf is not None:
+            # Create input dataframe from sidebar values
+            input_data = pd.DataFrame({
+                'stop_count': [stop_count],
+                'service_frequency': [service_frequency],
+                'population_density': [population_density],
+                'stop_density': [stop_density],
+                'pct_minority': [pct_minority],
+                'pct_commute_public_transit': [pct_commute_public_transit],
+                'median_income': [median_income],
+                'avg_daily_pickups': [avg_daily_pickups]
+            })
 
-    # --- Main Page Content ---
+            # --- START: DEBUGGING CODE ---
+            st.subheader("🕵️ Debugging Info")
+            st.write("**Features the Model Expects (from `optimal_features.joblib`):**")
+            st.write(optimal_features)
+            st.write("**Features the App Generated (from sidebar, before reordering):**")
+            st.write(list(input_data.columns))
+            # --- END: DEBUGGING CODE ---
+
+            try:
+                # Ensure the columns match the model's training features exactly in name and order
+                input_data = input_data[optimal_features]
+
+                # --- More Debugging ---
+                st.write("**Features After Reordering (what is sent to model):**")
+                st.write(list(input_data.columns))
+                st.success("Feature lists seem to match and reordering was successful.")
+                # --- End More Debugging ---
+
+                # Scale the input data ONLY if the scaler was loaded
+                if scaler:
+                    input_data_scaled = scaler.transform(input_data)
+                else:
+                    input_data_scaled = input_data
+                
+                # Make prediction
+                prediction = model.predict(input_data_scaled)
+                
+                st.sidebar.success(f"Predicted Accessibility Score: {prediction[0]:.3f}")
+
+            except KeyError as e:
+                st.error(f"**KeyError:** A feature is missing from the sidebar data that the model needs. The missing feature is: **{e}**")
+            except Exception as e:
+                st.error(f"An unexpected error occurred during prediction: {e}")
+
+
+    # --- Main Panel Display ---
     st.title("Chicago Transit Accessibility & Equity Dashboard")
 
     st.markdown("### Interactive Accessibility Map")
     
     # --- PyDeck Map Configuration ---
-    view_state = pdk.ViewState(latitude=41.8781, longitude=-87.6298, zoom=9, pitch=45, bearing=0)
+    if gdf is not None:
+        view_state = pdk.ViewState(latitude=41.8781, longitude=-87.6298, zoom=9, pitch=45, bearing=0)
 
-    layer = pdk.Layer(
-        "GeoJsonLayer",
-        gdf,
-        opacity=0.6,
-        stroked=True,
-        filled=True,
-        extruded=True,
-        wireframe=True,
-        get_elevation="accessibility_score * 2000",
-        get_fill_color="[255 * (1 - accessibility_score), 255 * accessibility_score, 0, 140]", # Green = High, Red = Low
-        get_line_color=[255, 255, 255],
-        pickable=True
-    )
-    
-    tooltip = {
-        "html": """
-            <b>Tract ID:</b> {tract_id} <br/>
-            <b>Accessibility Tier:</b> {cluster_label} <br/>
-            <b>Accessibility Score:</b> {accessibility_score:.3f} <br/>
-            <b>Median Income:</b> ${median_income:,.0f} <br/>
-            <b>Percent Minority:</b> {pct_minority:.1f}% <br/>
-        """
-    }
+        layer = pdk.Layer(
+            "GeoJsonLayer",
+            gdf,
+            opacity=0.6,
+            stroked=True,
+            filled=True,
+            extruded=True,
+            wireframe=True,
+            get_elevation="accessibility_score * 2000",
+            get_fill_color="[255 * (1 - accessibility_score), 255 * accessibility_score, 0, 140]", # Green = High, Red = Low
+            get_line_color=[255, 255, 255],
+            pickable=True
+        )
+        
+        tooltip = {
+            "html": """
+                <b>Tract ID:</b> {tract_id} <br/>
+                <b>Accessibility Tier:</b> {cluster_label} <br/>
+                <b>Accessibility Score:</b> {accessibility_score:.3f} <br/>
+                <b>Median Income:</b> ${median_income:,.0f} <br/>
+                <b>Percent Minority:</b> {pct_minority:.1f}% <br/>
+            """
+        }
 
-    r = pdk.Deck(
-        layers=[layer],
-        initial_view_state=view_state,
-        map_style='mapbox://styles/mapbox/light-v9',
-        tooltip=tooltip
-    )
+        r = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            map_style='mapbox://styles/mapbox/light-v9',
+            tooltip=tooltip
+        )
+        st.pydeck_chart(r)
+    else:
+        st.warning("Map data could not be loaded. Please check file paths and try again.")
 
-    st.pydeck_chart(r)
-    st.markdown("The map visualizes each census tract in Cook County. **Height and color** both represent the calculated accessibility score—higher, greener areas have better access.")
-    st.info("Hover over a tract to see its detailed stats.")
 
+if __name__ == "__main__":
+    main()
