@@ -35,33 +35,83 @@ def load_data():
         return gdf, model, scaler, optimal_features
         
     except FileNotFoundError as e:
-        st.error(f"ERROR: A required data file was not found: {e.filename}. Please make sure all necessary files from the notebook are in the same directory as the app.")
+        st.error(f"ERROR: A required data file was not found: {e.filename}. Please make sure all necessary files from the notebook are in the same directory as this app.")
         return None, None, None, None
 
-# --- Main App ---
-def main():
-    gdf, model, scaler, optimal_features = load_data()
+# --- Load Data ---
+gdf, model, scaler, optimal_features = load_data()
 
-    if gdf is None:
-        st.warning("App cannot start because data files are missing.")
-        return
+# --- Main App Logic (runs only if data is loaded) ---
+if gdf is not None and model is not None and optimal_features is not None:
+    
+    # --- Sidebar ---
+    st.sidebar.title("Urban Mobility Explorer")
+    st.sidebar.markdown("Analyze transit accessibility and equity across Chicago's neighborhoods.")
 
-    st.title("🏙️ Chicago Transit Accessibility & Equity Dashboard")
+    # --- Real-Time Prediction Section (Now Dynamic) ---
+    st.sidebar.header("Real-Time Accessibility Prediction")
+    st.sidebar.markdown("Adjust the sliders below for the features your model selected as most predictive.")
+
+    # A dictionary to hold the configuration for each possible slider
+    slider_configs = {
+        'median_income': {"label": "Median Household Income ($)", "min": 10000, "max": 250000, "default": 60000, "step": 1000},
+        'pct_minority': {"label": "Percent Minority Population", "min": 0.0, "max": 100.0, "default": 25.0, "step": 0.5},
+        'pct_commute_public_transit': {"label": "Percent Commuting via Public Transit", "min": 0.0, "max": 100.0, "default": 15.0, "step": 0.5},
+        'population_density': {"label": "Population Density (per sq/km)", "min": 500, "max": 30000, "default": 5000, "step": 100},
+        'avg_daily_pickups': {"label": "Avg. Daily Rideshare Pickups", "min": 0, "max": 500, "default": 50, "step": 5}
+    }
+    
+    # A dictionary to store the user's input values
+    user_inputs = {}
+
+    # Dynamically create sliders based on the loaded optimal_features
+    for feature in optimal_features:
+        if feature in slider_configs:
+            config = slider_configs[feature]
+            user_inputs[feature] = st.sidebar.slider(
+                config["label"], 
+                min_value=config["min"], 
+                max_value=config["max"], 
+                value=config["default"], 
+                step=config["step"]
+            )
+
+    # --- Prediction Logic ---
+    if st.sidebar.button("Predict Score", use_container_width=True):
+        # Create a dataframe from the dynamic inputs
+        input_data = pd.DataFrame([user_inputs])
+        
+        # Ensure the column order matches the model's training order
+        input_data = input_data[optimal_features]
+        
+        # Scale the input data ONLY if the scaler was loaded (i.e., SVR was the best model)
+        if scaler:
+            input_data_scaled = scaler.transform(input_data)
+        else:
+            input_data_scaled = input_data
+        
+        # Make the prediction
+        predicted_score = model.predict(input_data_scaled)[0]
+        
+        # Display the result
+        st.sidebar.metric("Predicted Accessibility Score", f"{predicted_score:.3f}")
+        
+        # Interpret the score based on our cluster analysis
+        if predicted_score >= 0.7:
+            st.sidebar.success("This score corresponds to an **'A: High-Access Corridor'** area.")
+        elif predicted_score >= 0.4:
+            st.sidebar.info("This score corresponds to a **'B: Moderate-Access Neighborhood'**.")
+        elif predicted_score >= 0.2:
+            st.sidebar.warning("This score corresponds to a **'C: Low-Access Area'**.")
+        else:
+            st.sidebar.error("This score corresponds to a **'D: Transit Desert'**.")
+
+    # --- Main Page Content ---
+    st.title("Chicago Transit Accessibility & Equity Dashboard")
 
     st.markdown("### Interactive Accessibility Map")
     
-    # --- PyDeck Map Configuration ---\
-    # Tooltip configuration for hover information
-    tooltip = {
-        "html": """
-            <b>Tract ID:</b> {tract_id} <br/>
-            <b>Accessibility Tier:</b> {cluster_label} <br/>
-            <b>Accessibility Score:</b> {accessibility_score:.3f} <br/>
-            <b>Median Income:</b> ${median_income:,.0f} <br/>
-            <b>Percent Minority:</b> {pct_minority:.1f}% <br/>
-        """
-    }
-    
+    # --- PyDeck Map Configuration ---
     view_state = pdk.ViewState(latitude=41.8781, longitude=-87.6298, zoom=9, pitch=45, bearing=0)
 
     layer = pdk.Layer(
@@ -78,82 +128,24 @@ def main():
         pickable=True
     )
     
+    tooltip = {
+        "html": """
+            <b>Tract ID:</b> {tract_id} <br/>
+            <b>Accessibility Tier:</b> {cluster_label} <br/>
+            <b>Accessibility Score:</b> {accessibility_score:.3f} <br/>
+            <b>Median Income:</b> ${median_income:,.0f} <br/>
+            <b>Percent Minority:</b> {pct_minority:.1f}% <br/>
+        """
+    }
+
     r = pdk.Deck(
         layers=[layer],
         initial_view_state=view_state,
-        tooltip=tooltip,
-        map_style="mapbox://styles/mapbox/light-v9"
+        map_style='mapbox://styles/mapbox/light-v9',
+        tooltip=tooltip
     )
-    
+
     st.pydeck_chart(r)
+    st.markdown("The map visualizes each census tract in Cook County. **Height and color** both represent the calculated accessibility score—higher, greener areas have better access.")
+    st.info("Hover over a tract to see its detailed stats.")
 
-    # --- Sidebar for User Input & Predictions ---
-    st.sidebar.title("Accessibility Predictor")
-    st.sidebar.markdown("""
-        Curious about how a new development or policy change might impact accessibility? 
-        Input the characteristics of a hypothetical census tract below to get a predicted 
-        accessibility score.
-    """)
-
-    # --- Create Input Fields ---
-    user_inputs = {}
-    user_inputs['bus_routes_in_tract'] = st.sidebar.slider("Number of Bus Routes", 0, 20, 5)
-    user_inputs['bus_stops_in_tract'] = st.sidebar.slider("Number of Bus Stops", 0, 50, 10)
-    user_inputs['total_bus_service_hours'] = st.sidebar.slider("Total Weekly Bus Service Hours", 0, 5000, 1000)
-    user_inputs['l_stops_in_tract'] = st.sidebar.slider("Number of 'L' Train Stops", 0, 5, 0)
-    user_inputs['dist_to_closest_l_stop_km'] = st.sidebar.number_input("Distance to Nearest 'L' Stop (km)", min_value=0.0, max_value=20.0, value=2.5, step=0.1)
-    user_inputs['total_l_service_hours'] = st.sidebar.slider("Total Weekly 'L' Service Hours", 0, 2500, 0)
-    user_inputs['median_income'] = st.sidebar.number_input("Median Household Income", min_value=10000, max_value=250000, value=60000, step=1000)
-    user_inputs['pct_minority'] = st.sidebar.slider("Percent Minority Population", 0.0, 100.0, 50.0, 0.5)
-
-    # --- Prediction Logic ---
-    if st.sidebar.button("Predict Accessibility Score"):
-        # Convert user inputs into a pandas DataFrame
-        input_df = pd.DataFrame([user_inputs])
-
-        # Ensure all necessary feature columns are present.
-        # This loop adds any features the model expects that aren't in the user input form.
-        for col in optimal_features:
-            if col not in input_df.columns:
-                input_df[col] = 0
-                
-        # --- FIX: Ensure feature order and names match the model's training data ---
-        # Create a DataFrame with columns explicitly ordered by `optimal_features`.
-        # This is the crucial step to prevent the ValueError.
-        final_input_df = input_df[optimal_features]
-
-        # Data scaling (if a scaler was used during training)
-        if scaler:
-            # The scaler.transform method returns a NumPy array, which discards feature names.
-            input_scaled_np = scaler.transform(final_input_df)
-            
-            # The model, however, likely expects a DataFrame with specific feature names.
-            # We must convert the scaled array back to a DataFrame with the correct columns.
-            input_for_model = pd.DataFrame(input_scaled_np, columns=optimal_features)
-            
-            prediction = model.predict(input_for_model)
-        else:
-            # For models that don't need scaling, we still pass the correctly ordered DataFrame.
-            input_for_model = final_input_df
-            prediction = model.predict(input_for_model)
-
-        st.sidebar.subheader("Predicted Score:")
-        st.sidebar.info(f"{prediction[0]:.3f}")
-
-        # --- Interpretation of the score ---
-        # Find the cluster label for the predicted score based on the predicted value
-        score = prediction[0]
-        if score > 0.7:
-             cluster_label = "High-Access Hubs"
-        elif score > 0.45:
-            cluster_label = "Well-Connected Areas"
-        elif score > 0.2:
-            cluster_label = "Moderate-Access Zones"
-        else:
-            cluster_label = "Low-Access Areas"
-
-        st.sidebar.metric(label="Predicted Accessibility Tier", value=cluster_label)
-
-
-if __name__ == "__main__":
-    main()
