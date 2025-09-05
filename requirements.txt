@@ -96,8 +96,6 @@ pyproj==3.7.1
 python-dateutil==2.9.0.post0
 python-json-logger==3.3.0
 pytz==2025.2
-pywin32==311
-pywinpty==3.0.0
 PyYAML==6.0.2
 pyzmq==27.0.2
 rasterio==1.4.3
