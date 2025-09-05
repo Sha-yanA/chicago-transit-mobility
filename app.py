@@ -76,15 +76,6 @@ if gdf is not None and model is not None and optimal_features is not None:
                 step=config["step"]
             )
 
-    
-    # --- START: DEBUGGING CODE ---
-    st.subheader("🕵️ Debugging Info")
-    st.write("**Features the Model Expects (from `optimal_features.joblib`):**")
-    st.write(optimal_features)
-    st.write("**Features the App Generated (from sidebar, before reordering):**")
-    st.write(list(input_data.columns))
-    # --- END: DEBUGGING CODE ---
-
     # --- Prediction Logic ---
     if st.sidebar.button("Predict Score", use_container_width=True):
         # Create a dataframe from the dynamic inputs
