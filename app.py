@@ -90,14 +90,13 @@ if gdf is not None and model is not None and optimal_features is not None:
         else:
             input_data_scaled = input_data
 
-        input_data_scaled = input_data_scaled[optimal_features]
-        print(f"hellooooo... {input_data_scaled}")
-        
+        # input_data_scaled = input_data_scaled[optimal_features]
+
         # Make the prediction
         predicted_score = model.predict(input_data_scaled)
         
         # Display the result
-        st.sidebar.metric("Predicted Accessibility Score", f"{predicted_score:.3f}")
+        st.sidebar.metric("Predicted Accessibility Score", f"{predicted_score[0]:.3f}")
         
         # Interpret the score based on our cluster analysis
         if predicted_score >= 0.7:
