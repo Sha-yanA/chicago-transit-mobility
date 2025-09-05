@@ -21,6 +21,9 @@ def load_data():
     """
     try:
         gdf = gpd.read_file("chicago_accessibility_predictions.geojson")
+        if gdf.crs != "EPSG:4326":
+            gdf = gdf.to_crs(epsg=4326)
+
         model = joblib.load("transit_accessibility_model.joblib")
         optimal_features = joblib.load("optimal_features.joblib")
 
