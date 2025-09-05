@@ -89,6 +89,8 @@ if gdf is not None and model is not None and optimal_features is not None:
             input_data_scaled = scaler.transform(input_data)
         else:
             input_data_scaled = input_data
+
+        input_data_scaled = input_data_scaled[optimal_features]
         
         # Make the prediction
         predicted_score = model.predict(input_data_scaled)[0]
