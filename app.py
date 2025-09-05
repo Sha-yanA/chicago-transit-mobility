@@ -132,11 +132,11 @@ if gdf is not None and model is not None and optimal_features is not None:
     
     tooltip = {
         "html": """
-            <b>Tract ID:</b> {tract_id} <br/>
-            <b>Accessibility Tier:</b> {cluster_label} <br/>
-            <b>Accessibility Score:</b> {accessibility_score:.3f} <br/>
-            <b>Median Income:</b> ${median_income:,.0f} <br/>
-            <b>Percent Minority:</b> {pct_minority:.1f}% <br/>
+            <b>Tract ID:</b> {properties.tract_id} <br/>
+            <b>Accessibility Tier:</b> {properties.cluster_label} <br/>
+            <b>Accessibility Score:</b> {properties.accessibility_score:.3f} <br/>
+            <b>Median Income:</b> ${properties.median_income:,.0f} <br/>
+            <b>Percent Minority:</b> {properties.pct_minority:.1f}% <br/>
         """
     }
 
