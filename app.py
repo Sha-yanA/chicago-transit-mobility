@@ -24,6 +24,26 @@ def load_data():
         if gdf.crs != "EPSG:4326":
             gdf = gdf.to_crs(epsg=4326)
 
+        # --- FIX 1: Clean data for tooltip to prevent rendering errors ---
+        # Ensure tooltip columns have appropriate types and fill any missing values.
+        tooltip_cols = ['tract_id', 'cluster_label', 'accessibility_score', 'median_income', 'pct_minority']
+        for col in tooltip_cols:
+            if col not in gdf.columns:
+                st.warning(f"Tooltip column '{col}' not found in the data. It will not be displayed.")
+                # Add a placeholder column to prevent the app from crashing
+                if 'label' in col or 'id' in col:
+                    gdf[col] = 'Not Available'
+                else:
+                    gdf[col] = 0
+        
+        # Explicitly set data types and fill NaNs for robustness
+        gdf['tract_id'] = gdf['tract_id'].astype(str)
+        gdf['cluster_label'] = gdf['cluster_label'].astype(str).fillna('N/A')
+        gdf['accessibility_score'] = pd.to_numeric(gdf['accessibility_score'], errors='coerce').fillna(0)
+        gdf['median_income'] = pd.to_numeric(gdf['median_income'], errors='coerce').fillna(0)
+        gdf['pct_minority'] = pd.to_numeric(gdf['pct_minority'], errors='coerce').fillna(0)
+        # --- End of fix ---
+
         model = joblib.load("transit_accessibility_model.joblib")
         optimal_features = joblib.load("optimal_features.joblib")
 
@@ -132,11 +152,11 @@ if gdf is not None and model is not None and optimal_features is not None:
     
     tooltip = {
         "html": """
-            <b>Tract ID:</b> {properties.tract_id} <br/>
-            <b>Accessibility Tier:</b> {properties.cluster_label} <br/>
-            <b>Accessibility Score:</b> {properties.accessibility_score:.3f} <br/>
-            <b>Median Income:</b> ${properties.median_income:,.0f} <br/>
-            <b>Percent Minority:</b> {properties.pct_minority:.1f}% <br/>
+            <b>Tract ID:</b> {tract_id} <br/>
+            <b>Accessibility Tier:</b> {cluster_label} <br/>
+            <b>Accessibility Score:</b> {accessibility_score:.3f} <br/>
+            <b>Median Income:</b> ${median_income:,.0f} <br/>
+            <b>Percent Minority:</b> {pct_minority:.1f}% <br/>
         """
     }
 
