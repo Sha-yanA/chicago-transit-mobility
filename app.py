@@ -85,7 +85,7 @@ if gdf is not None and model is not None and optimal_features is not None:
         input_data = input_data[optimal_features]
         
         # Scale the input data ONLY if the scaler was loaded (i.e., SVR was the best model)
-        if scaler:
+        if scaler and type(model).__name__ == 'SVR':
             input_data_scaled = scaler.transform(input_data)
         else:
             input_data_scaled = input_data
