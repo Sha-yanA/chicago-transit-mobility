@@ -91,7 +91,7 @@ if gdf is not None and model is not None and optimal_features is not None:
             input_data_scaled = input_data
 
         input_data_scaled = input_data_scaled[optimal_features]
-        print(f"hellooooo... {input_data_scaled})
+        print(f"hellooooo... {input_data_scaled}")
         
         # Make the prediction
         predicted_score = model.predict(input_data_scaled)
