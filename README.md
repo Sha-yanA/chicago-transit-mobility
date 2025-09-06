@@ -1,6 +1,6 @@
 # Evaluating Urban Mobility in Chicago with Machine Learning
 
- A complete, end-to-end Machine Learning pipeline to evaluate urban mobility in Chicago. The pipeline covers everything from acquiring the data to analyzing the results for efficiency and equity.
+ A complete, end-to-end Machine Learning pipeline to evaluate urban mobility in Chicago. The pipeline covers everything from acquiring the data to analyzing the results for efficiency and equity. Check it out on https://chicago-transit-mobility.streamlit.app
 
 ## 1. Project Framing and Goal Definition
 
