@@ -187,22 +187,11 @@ The final and most important step, where we draw conclusions.
 
 ## 8. Deployment and Real-time Prediction 
 
-To make your model interactive and forward-looking, you can deploy it.
-
-- API Development: Wrap your trained regression model in a web API using Flask or FastAPI.
-
-- Endpoint: Create an endpoint that accepts a census tract ID as input.
-
-- Functionality: When the endpoint is called:
-	1. It retrieves the static features for that tract (demographics, etc.).
-	2. For real-time adjustments, it could call the CTA Bus Tracker API to check for current service disruptions or delays near that tract.
-	3. It feeds these features into the loaded model and returns the predicted Accessibility_Score as a JSON response.
-
-- Frontend: Build a simple web dashboard (using Streamlit or Dash) that displays the map of accessibility scores and allows users (like city planners or residents) to click on a tract to see its score and underlying data.
+We have built a simple web dashboard using Streamlit that displays the map of accessibility scores and allows users (like city planners or residents) to click on a tract to see its score and underlying data.
 
 ## 9. Monitoring and Maintenance
 
-A model is a living asset and must be maintained.
+We implement these steps for continuous monitoring and regualr maintenance 
 
 - Data Updates: The CTA GTFS data, ridership figures, and ACS estimates are updated periodically. Schedule a quarterly or biannual pipeline run to ingest new data.
 
